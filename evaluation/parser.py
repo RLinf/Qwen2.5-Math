@@ -1,11 +1,9 @@
-import random
-import regex
 import re
-import sympy
+from typing import Any, Dict
+
+import regex
 from latex2sympy2 import latex2sympy
-from typing import TypeVar, Iterable, List, Union, Any, Dict
 from word2number import w2n
-from utils import *
 
 
 def _fix_fracs(string):
@@ -20,7 +18,7 @@ def _fix_fracs(string):
             else:
                 try:
                     assert len(substr) >= 2
-                except:
+                except:  # noqa: E722
                     return string
                 a = substr[0]
                 b = substr[1]
@@ -53,7 +51,7 @@ def _fix_a_slash_b(string):
         assert string == "{}/{}".format(a, b)
         new_string = "\\frac{" + str(a) + "}{" + str(b) + "}"
         return new_string
-    except:
+    except:  # noqa: E722
         return string
 
 
@@ -65,7 +63,7 @@ def _fix_sqrt(string):
 def convert_word_number(text: str) -> str:
     try:
         text = str(w2n.word_to_num(text))
-    except:
+    except:  # noqa: E722
         pass
     return text
 
@@ -280,7 +278,7 @@ def strip_string(string, skip_unit=False):
 
     # remove percentage
     string = string.replace("\\%", "")
-    string = string.replace("\%", "")
+    string = string.replace(r"\%", "")
     string = string.replace("%", "")
 
     # " 0." equivalent to " ." and "{0." equivalent to "{." Alternatively, add "0" if "." is the start of the string
@@ -457,15 +455,12 @@ def clean_units(pred_str: str):
 
 
 def extract_theoremqa_answer(pred: str, answer_flag: bool = True):
-    if any([option in pred.lower() for option in ["yes", "true"]]):
+    if any(option in pred.lower() for option in ["yes", "true"]):
         pred = "True"
-    elif any([option in pred.lower() for option in ["no", "false"]]):
+    elif any(option in pred.lower() for option in ["no", "false"]):
         pred = "False"
     elif any(
-        [
-            option in pred.lower()
-            for option in ["(a)", "(b)", "(c)", "(d)", "(e)", "(f)"]
-        ]
+        option in pred.lower() for option in ["(a)", "(b)", "(c)", "(d)", "(e)", "(f)"]
     ):
         pass
     else:
@@ -536,7 +531,7 @@ def extract_answer(pred_str, data_name, use_last_number=True):
         pred = pred_str.split("答案是")[1].strip().split("\n\n")[0].strip()
     else:  # use the last number
         if use_last_number:
-            pattern = "-?\d*\.?\d+"
+            pattern = r"-?\d*\.?\d+"
             pred = re.findall(pattern, pred_str.replace(",", ""))
             if len(pred) >= 1:
                 pred = pred[-1]
@@ -546,10 +541,7 @@ def extract_answer(pred_str, data_name, use_last_number=True):
             pred = ""
 
     # choice answer
-    if (
-        data_name in ["sat_math", "aqua"]
-        or "mmlu" in data_name
-    ):
+    if data_name in ["sat_math", "aqua"] or "mmlu" in data_name:
         tmp = re.findall(r"\b(A|B|C|D|E)\b", pred.upper())
         if tmp:
             pred = tmp[-1]
@@ -629,6 +621,8 @@ def parse_ground_truth(example: Dict[str, Any], data_name):
         gt_cot, gt_ans = None, example["final_answer"][0].strip("$")
     elif data_name in [
         "aime24",
+        "aime25",
+        "gpqa_diamond",
         "amc23",
         "cmath",
         "gaokao2024_I",
@@ -659,16 +653,16 @@ def parse_question(example, data_name):
         body = example["Body"].strip()
         if not body.endswith("."):
             body = body + "."
-        question = f'{body} {example["Question"].strip()}'
+        question = f"{body} {example['Question'].strip()}"
     elif data_name == "tabmwp":
         title_str = (
             f'regarding "{example["table_title"]}" ' if example["table_title"] else ""
         )
         question = f"Read the following table {title_str}and answer a question:\n"
-        question += f'{example["table"]}\n{example["question"]}'
+        question += f"{example['table']}\n{example['question']}"
         if example["choices"]:
             question += (
-                f' Please select from the following options: {example["choices"]}'
+                f" Please select from the following options: {example['choices']}"
             )
     elif data_name == "carp_en":
         question = example["content"]
@@ -686,7 +680,7 @@ def parse_question(example, data_name):
         options = "(" + options
         for ch in "BCD":
             if f" {ch}) " in options:
-                options = regex.sub(f" {ch}\) ", f" ({ch}) ", options)
+                options = regex.sub(rf" {ch}\) ", f" ({ch}) ", options)
         # question = f"{example['question'].strip()}\nWhat of the following is the right choice? Explain your answer.\n{options.strip()}"
         question = f"{example['question'].strip()}\nAnswer Choices: {options}"
     elif "aqua" in data_name:
@@ -724,13 +718,7 @@ def run_execute(executor, result, prompt_type, data_name, execute=False):
         return None, None
     report = None
 
-    if "program_only" in prompt_type:
-        prediction = extract_program_output(result)
-    elif prompt_type in ["pot", "pal"] and execute:
-        code = extract_program(result)
-        prediction, report = executor.apply(code)
-    else:
-        prediction = extract_answer(result, data_name)
+    prediction = extract_answer(result, data_name)
 
     # prediction = strip_string(prediction, skip_unit=data_name == "carp_en")
     prediction = strip_string(prediction, skip_unit=data_name in STRIP_EXCEPTIONS)
@@ -741,18 +729,18 @@ def _test_extract_answer():
     text = """
 This is still not equal to $0$, so we must have made another mistake.
 
-When we subtracted $7$ from $\frac{386}{64}$, we should have subtracted $7 \cdot 64$ from $386$, not the other way around. Let's correct that:
+When we subtracted $7$ from $\frac{386}{64}$, we should have subtracted $7 \\cdot 64$ from $386$, not the other way around. Let's correct that:
 
-\[\frac{386}{64} - 7 = \frac{386}{64} - \frac{7 \cdot 64}{1 \cdot 64} = \frac{386 - 448}{64} = \frac{-62}{64}.\]
+\\[\frac{386}{64} - 7 = \frac{386}{64} - \frac{7 \\cdot 64}{1 \\cdot 64} = \frac{386 - 448}{64} = \frac{-62}{64}.\\]
 
 This is still not equal to $0$, so we must have made another mistake.
 
-When we subtracted $7$ from $\frac{386}{64}$, we should have subtracted $7 \cdot 64$ from $386$, not the other way around. Let's correct that:
+When we subtracted $7$ from $\frac{386}{64}$, we should have subtracted $7 \\cdot 64$ from $386$, not the other way around. Let's correct that:
 
-\[\frac{386}{64}
+\\[\frac{386}{64}
 """
     print(extract_answer(text, "math-oai", use_last_number=False))
-    print(choice_answer_clean("\mathrm{(D)\}1,008,016"))
+    print(choice_answer_clean(r"\mathrm{(D)\}1,008,016"))
     # should output a dict
 
 

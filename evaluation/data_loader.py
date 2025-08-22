@@ -1,8 +1,8 @@
+# Copyright 2025 The RLinf Authors.
+
 import os
-import json
-import random
-import datasets
-from datasets import load_dataset, Dataset, concatenate_datasets
+
+from datasets import Dataset, concatenate_datasets, load_dataset
 from utils import load_jsonl, lower_keys
 
 

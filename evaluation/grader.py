@@ -6,20 +6,16 @@ This logic is largely copied from the Hendrycks' MATH release (math_equivalence)
 - https://github.com/deepseek-ai/DeepSeek-Math/blob/main/evaluation/eval/eval_utils.py
 """
 
-import re
-import regex
 import multiprocessing
+import re
 from math import isclose
 from typing import Union
-from collections import defaultdict
 
-from sympy import simplify, N
-from sympy.parsing.sympy_parser import parse_expr
-from sympy.parsing.latex import parse_latex
+import regex
 from latex2sympy2 import latex2sympy
-
-# from .parser import choice_answer_clean, strip_string
-# from parser import choice_answer_clean
+from sympy import N, simplify
+from sympy.parsing.latex import parse_latex
+from sympy.parsing.sympy_parser import parse_expr
 
 
 def choice_answer_clean(pred: str):
@@ -40,14 +36,14 @@ def parse_digits(num):
     num = regex.sub(",", "", str(num))
     try:
         return float(num)
-    except:
+    except:  # noqa: E722
         if num.endswith("%"):
             num = num[:-1]
             if num.endswith("\\"):
                 num = num[:-1]
             try:
                 return float(num) / 100
-            except:
+            except:  # noqa: E722
                 pass
     return None
 
@@ -113,7 +109,7 @@ def math_equal(
                 except Exception:
                     continue
             return False
-    except:
+    except:  # noqa: E722
         pass
 
     if not prediction and prediction not in [0, False]:
@@ -123,11 +119,11 @@ def math_equal(
     reference = str(reference).strip()
     prediction = str(prediction).strip()
 
-    ## pmatrix (amps)
-    if "pmatrix" in prediction and not "pmatrix" in reference:
+    # pmatrix (amps)
+    if "pmatrix" in prediction and "pmatrix" not in reference:
         reference = str_to_pmatrix(reference)
 
-    ## deal with [], (), {}
+    # deal with [], (), {}
     pred_str, ref_str = prediction, reference
     if (
         prediction.startswith("[")
@@ -146,7 +142,7 @@ def math_equal(
     if pred_str.lower() == ref_str.lower():
         return True
 
-    ## [a, b] vs. [c, d], return a==c and b==d
+    # [a, b] vs. [c, d], return a==c and b==d
     if (
         regex.match(r"(\(|\[).+(\)|\])", prediction) is not None
         and regex.match(r"(\(|\[).+(\)|\])", reference) is not None
@@ -155,12 +151,8 @@ def math_equal(
         ref_parts = reference[1:-1].split(",")
         if len(pred_parts) == len(ref_parts):
             if all(
-                [
-                    math_equal(
-                        pred_parts[i], ref_parts[i], include_percentage, is_close
-                    )
-                    for i in range(len(pred_parts))
-                ]
+                math_equal(pred_parts[i], ref_parts[i], include_percentage, is_close)
+                for i in range(len(pred_parts))
             ):
                 return True
     if (
@@ -201,15 +193,13 @@ def math_equal(
                 ref_parts = ref_line.split("&")
                 if len(pred_parts) == len(ref_parts):
                     if not all(
-                        [
-                            math_equal(
-                                pred_parts[i],
-                                ref_parts[i],
-                                include_percentage,
-                                is_close,
-                            )
-                            for i in range(len(pred_parts))
-                        ]
+                        math_equal(
+                            pred_parts[i],
+                            ref_parts[i],
+                            include_percentage,
+                            is_close,
+                        )
+                        for i in range(len(pred_parts))
                     ):
                         matched = False
                         break
@@ -278,10 +268,10 @@ def symbolic_equal(a, b):
         for f in [parse_latex, parse_expr, latex2sympy]:
             try:
                 return f(s.replace("\\\\", "\\"))
-            except:
+            except:  # noqa: E722
                 try:
                     return f(s)
-                except:
+                except:  # noqa: E722
                     pass
         return s
 
@@ -292,27 +282,27 @@ def symbolic_equal(a, b):
     try:
         if str(a) == str(b) or a == b:
             return True
-    except:
+    except:  # noqa: E722
         pass
 
     # simplify equal
     try:
         if a.equals(b) or simplify(a - b) == 0:
             return True
-    except:
+    except:  # noqa: E722
         pass
 
     # equation equal
     try:
         if (abs(a.lhs - a.rhs)).equals(abs(b.lhs - b.rhs)):
             return True
-    except:
+    except:  # noqa: E722
         pass
 
     try:
         if numeric_equal(float(N(a)), float(N(b))):
             return True
-    except:
+    except:  # noqa: E722
         pass
 
     # matrix
@@ -323,7 +313,7 @@ def symbolic_equal(a, b):
             _b = b.applyfunc(lambda x: round(x, 3))
             if _a.equals(_b):
                 return True
-    except:
+    except:  # noqa: E722
         pass
 
     return False
@@ -348,43 +338,8 @@ def call_with_timeout(func, *args, timeout=1, **kwargs):
 
     return output_queue.get()
 
+
 def _test_math_equal():
-    # print(math_equal("0.0833333333333333", "\\frac{1}{12}"))
-    # print(math_equal("(1,4.5)", "(1,\\frac{9}{2})"))
-    # print(math_equal("\\frac{x}{7}+\\frac{2}{7}", "\\frac{x+2}{7}", timeout=True))
-    # print(math_equal("\\sec^2(y)", "\\tan^2(y)+1", timeout=True))
-    # print(math_equal("\\begin{pmatrix}-\\frac{7}{4}&-2\\\\4&\\frac{1}{4}\\end{pmatrix}", "(\\begin{pmatrix}-\\frac{7}{4}&-2\\\\4&\\frac{1}{4}\\\\\\end{pmatrix})", timeout=True))
-
-    # pred = '\\begin{pmatrix}\\frac{1}{3x^{2/3}}&0&0\\\\0&1&0\\\\-\\sin(x)&0&0\\end{pmatrix}'
-    # gt = '(\\begin{pmatrix}\\frac{1}{3\\sqrt[3]{x}^2}&0&0\\\\0&1&0\\\\-\\sin(x)&0&0\\\\\\end{pmatrix})'
-
-    # pred= '-\\frac{8x^2}{9(x^2-2)^{5/3}}+\\frac{2}{3(x^2-2)^{2/3}}'
-    # gt= '-\\frac{2(x^2+6)}{9(x^2-2)\\sqrt[3]{x^2-2}^2}'
-
-    # pred =  '-34x-45y+20z-100=0'
-    # gt = '34x+45y-20z+100=0'
-
-    # pred = '\\frac{100}{3}'
-    # gt = '33.3'
-
-    # pred = '\\begin{pmatrix}0.290243531202435\\\\0.196008371385084\\\\-0.186381278538813\\end{pmatrix}'
-    # gt = '(\\begin{pmatrix}0.29\\\\0.196\\\\-0.186\\\\\\end{pmatrix})'
-
-    # pred = '\\frac{\\sqrt{\\sqrt{11}+\\sqrt{194}}}{2\\sqrt{33}+15}'
-    # gt = '\\frac{\\sqrt{\\sqrt{11}+\\sqrt{194}}}{15+2\\sqrt{33}}'
-
-    # pred = '(+5)(b+2)'
-    # gt = '(a+5)(b+2)'
-
-    # pred = '\\frac{1+\\sqrt{5}}{2}'
-    # gt = '2'
-
-    # pred = '\\frac{34}{16}+\\frac{\\sqrt{1358}}{16}', gt = '4'
-    # pred = '1', gt = '1\\\\sqrt{19}'
-
-    # pred = "(0.6,2.6667]"
-    # gt = "(\\frac{3}{5},\\frac{8}{3}]"
-
     gt = "x+2n+1"
     pred = "x+1"
 

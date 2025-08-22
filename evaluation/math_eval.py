@@ -1,39 +1,38 @@
-import random
-import os
 import argparse
+import json
+import os
+import random
 import time
-from vllm import LLM, SamplingParams
 from datetime import datetime
-from tqdm import tqdm
+from parser import choice_answer_clean, parse_ground_truth, parse_question, run_execute
 
-import torch
-from transformers import AutoTokenizer, AutoModelForCausalLM
-
-from evaluate import evaluate
-from utils import set_seed, load_jsonl, save_jsonl, construct_prompt
-from parser import *
-from trajectory import *
 from data_loader import load_data
+from evaluate import evaluate
+from model_utils import generate_completions, load_hf_lm_and_tokenizer
 from python_executor import PythonExecutor
-from model_utils import load_hf_lm_and_tokenizer, generate_completions
+from tqdm import tqdm
+from trajectory import extract_program
+from transformers import AutoTokenizer
+from utils import construct_prompt, load_jsonl, save_jsonl, set_seed
+from vllm import LLM, SamplingParams
 
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--data_names", default="gsm8k,math", type=str)
+    parser.add_argument("--data_names", default="aime24", type=str)
     parser.add_argument("--data_dir", default="./data", type=str)
     parser.add_argument("--model_name_or_path", default="gpt-4", type=str)
     parser.add_argument("--output_dir", default="./output", type=str)
-    parser.add_argument("--prompt_type", default="tool-integrated", type=str)
+    parser.add_argument("--prompt_type", default="r1-distilled-qwen", type=str)
     parser.add_argument("--split", default="test", type=str)
     parser.add_argument("--num_test_sample", default=-1, type=int)  # -1 for full data
     parser.add_argument("--seed", default=0, type=int)
     parser.add_argument("--start", default=0, type=int)
     parser.add_argument("--end", default=-1, type=int)
-    parser.add_argument("--temperature", default=0, type=float)
-    parser.add_argument("--n_sampling", default=1, type=int)
-    parser.add_argument("--top_p", default=1, type=float)
-    parser.add_argument("--max_tokens_per_call", default=2048, type=int)
+    parser.add_argument("--temperature", default=1.0, type=float)
+    parser.add_argument("--n_sampling", default=32, type=int)
+    parser.add_argument("--top_p", default=0.95, type=float)
+    parser.add_argument("--max_tokens_per_call", default=32768, type=int)
     parser.add_argument("--shuffle", action="store_true")
     parser.add_argument("--use_vllm", action="store_true")
     parser.add_argument("--save_outputs", action="store_true")
@@ -75,13 +74,13 @@ def prepare_data(data_name, args):
     examples = examples[args.start : len(examples) if args.end == -1 else args.end]
 
     # get out_file name
-    dt_string = datetime.now().strftime("%m-%d_%H-%M")
-    model_name = "/".join(args.model_name_or_path.split("/")[-2:])
     out_file_prefix = f"{args.split}_{args.prompt_type}_{args.num_test_sample}_seed{args.seed}_t{args.temperature}"
     output_dir = args.output_dir
     if not os.path.exists(output_dir):
         output_dir = f"outputs/{output_dir}"
-    out_file = f"{output_dir}/{data_name}/{out_file_prefix}_s{args.start}_e{args.end}.jsonl"
+    out_file = (
+        f"{output_dir}/{data_name}/{out_file_prefix}_s{args.start}_e{args.end}.jsonl"
+    )
     os.makedirs(f"{output_dir}/{data_name}", exist_ok=True)
 
     # load all processed samples
@@ -93,9 +92,7 @@ def prepare_data(data_name, args):
             if f.endswith(".jsonl") and f.startswith(out_file_prefix)
         ]
         for f in processed_files:
-            processed_samples.extend(
-                list(load_jsonl(f"{output_dir}/{data_name}/{f}"))
-            )
+            processed_samples.extend(list(load_jsonl(f"{output_dir}/{data_name}/{f}")))
 
     # dedepulicate
     processed_samples = {sample["idx"]: sample for sample in processed_samples}
@@ -138,12 +135,12 @@ def setup(args):
     data_list.append("avg")
     results.append(
         {
-            "acc": sum([result["acc"] for result in results]) / len(results),
+            "acc": sum(result["acc"] for result in results) / len(results),
         }
     )
 
     # print all results
-    pad = max([len(data_name) for data_name in data_list])
+    pad = max(len(data_name) for data_name in data_list)
     print("\t".join(data_name.ljust(pad, " ") for data_name in data_list))
     print("\t".join([f"{result['acc']:.1f}".ljust(pad, " ") for result in results]))
 

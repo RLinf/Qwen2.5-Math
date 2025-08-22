@@ -1,29 +1,8 @@
 import re
-import time
-import os
-import json
-import random
-import string
-from enum import Enum, auto
-from tqdm import tqdm
-from collections import OrderedDict
-import dataclasses
-import pandas as pd
+
+import sympy as sp
 import timeout_decorator
-import mpmath
-import sympy as sp
 from sympy.parsing.latex import parse_latex
-import sympy as sp
-from sympy import simplify
-from sympy.printing import latex
-from sympy.core.relational import Relational
-from sympy.solvers.solveset import solvify
-from sympy.solvers.inequalities import reduce_inequalities
-from sympy.parsing.sympy_parser import (
-    parse_expr,
-    standard_transformations,
-    implicit_multiplication,
-)
 
 
 def compare_numerical_ans(ans_p, ans_l):
@@ -38,7 +17,7 @@ def compare_numerical_ans(ans_p, ans_l):
             ans_p = float(ans_p)
         if isinstance(ans_l, str):
             ans_l = float(ans_l)
-    except Exception as e:
+    except Exception:
         return False
     return abs(ans_p - float(ans_l)) < 1e-3
 
@@ -91,7 +70,7 @@ def clean_expr_str(expr_str):
         .replace("\\%", "")
         .replace("%", "")
         .replace("\\!", "")
-        .replace("^\circ", "\\times \\pi / 180")
+        .replace(r"^\circ", "\\times \\pi / 180")
         .replace("//", "/")
         .replace('"', "")
         # .replace(",", "") # TODO
@@ -120,7 +99,7 @@ def parse_latex_answer(sample):
     sample = clean_expr_str(sample)
     try:
         expr = my_parse_latex(sample)
-    except:
+    except:  # noqa: E722
         print("[parse failed]", sample)
         return None
     return expr
@@ -141,7 +120,7 @@ def is_expr_equal(ans_p, ans_l, is_strict=False):
             try:
                 ret = my_equals(equation.rhs, number)
                 return bool(ret)
-            except:
+            except:  # noqa: E722
                 return equation.rhs == number
 
     if ans_p is None or ans_l is None:
@@ -165,7 +144,7 @@ def is_expr_equal(ans_p, ans_l, is_strict=False):
     if isinstance(ans_l, sp.core.relational.Relational):
         try:
             if (
-                type(ans_l) == type(ans_p)
+                type(ans_l) == type(ans_p)  # noqa: E721
                 and my_equals(ans_p.lhs, ans_l.lhs)
                 and my_equals(ans_p.rhs, ans_l.rhs)
             ):
@@ -175,32 +154,13 @@ def is_expr_equal(ans_p, ans_l, is_strict=False):
     try:
         ret = my_equals(ans_p, ans_l)
         return bool(ret)
-    except:
+    except:  # noqa: E722
         return False
-
-
-# @timeout_decorator.timeout(5)
-# def compare_ans(ans_p_str, ans_l_str, is_strict=False):
-#     ans_p_str = clean_expr_str(ans_p_str)
-#     ans_p_str = ans_p_str.replace(",", "").replace("$", "")
-#     ans_l_str = clean_expr_str(ans_l_str)
-#     ans_l_str = ans_l_str.replace(",", "").replace("$", "")
-#     if ans_p_str is None:
-#         return False
-#     if ans_p_str.replace(" ", "") == ans_l_str.replace(" ", ""):
-#         return True
-#     ans_p = parse_latex_answer(ans_p_str)
-#     if ans_p is None:
-#         return False
-#     ans_l = parse_latex_answer(ans_l_str)
-#     if ans_l is None:
-#         return False
-#     return is_expr_equal(ans_p, ans_l, is_strict=is_strict)
 
 
 def extract_answer_number(sentence: str) -> float:
     sentence = sentence.replace(",", "")
-    pred = [s for s in re.findall(r"-?\d+\.?\d*", sentence)]
+    pred = list(re.findall(r"-?\d+\.?\d*", sentence))
     if not pred:
         return ""
     return pred[-1]
@@ -231,11 +191,6 @@ def compare_ans(ans_p_str, ans_l_str, is_strict=False):
         if is_expr_equal(ans_p, ans_l, is_strict=is_strict):
             return True
     return False
-
-
-def vote(answers):
-    counter = Counter(answers)
-    return counter.most_common(1)[0][0]
 
 
 def contains_number(s):
