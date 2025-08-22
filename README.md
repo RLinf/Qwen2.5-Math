@@ -1,4 +1,4 @@
-# Model Evaluation
+# LLM Evaluation Toolkit for RLinf
 
 ## Acknowledgement
 
@@ -8,7 +8,7 @@ This evaluation toolkit is adapted from [Qwen2.5-Math](https://github.com/QwenLM
 
 We provide an integrated evaluation toolkit for long chain-of-thought (CoT) mathematical reasoning. 
 
-The toolkit (located in `tools/math_evaluation`) includes both code and datasets, allowing researchers to easily benchmark trained LLMs on math-related reasoning tasks.
+This toolkit includes both code and datasets, allowing researchers to easily benchmark trained LLMs on math-related reasoning tasks.
 
 ## Environment Setup
 
